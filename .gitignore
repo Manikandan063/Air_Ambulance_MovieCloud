@@ -1,6 +1,21 @@
-__pycache__/
+# Virtual environments
 venv/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment variables
 .env
+
+# Generated files
 *.pdf
+*.log
+
+# IDE
 .vscode/
 .idea/
