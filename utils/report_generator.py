@@ -15,7 +15,7 @@ from datetime import datetime
 # -------------------------------------------
 # REGISTER FONT THAT SUPPORTS INDIAN RUPEE ₹
 # -------------------------------------------
-FONT_PATH = "DejaVuSans.ttf"
+FONT_PATH = "assets/fonts/DejaVuSans.ttf"
 
 if not os.path.exists(FONT_PATH):
     raise Exception(
