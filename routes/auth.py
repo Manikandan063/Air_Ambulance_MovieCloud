@@ -7,38 +7,39 @@ from typing import Annotated
 
 from database.connection import get_collection
 from models.user import (
-    User, UserCreate, UserRole, Token, LoginRequest,
+    User, UserCreate, LoginRequest, Token,
     ForgotPasswordRequest, ResetPasswordRequest
 )
 from utils.auth import (
     verify_password, get_password_hash,
-    create_access_token, verify_token,
+    create_access_token, verify_token, decode_access_token,
     generate_otp, send_email_otp
 )
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
-# =======================================================
-# GET CURRENT USER HELPERS
-# =======================================================
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+# ==============================
+# GET CURRENT USER
+# ==============================
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    token_data = decode_access_token(token)
 
-    token_data = verify_token(token)
-    if token_data is None:
-        raise credentials_exception
+    if not token_data or "sub" not in token_data:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials"
+        )
 
     users_collection = get_collection("users")
-    user_data = users_collection.find_one({"email": token_data.email})
+    user_data = users_collection.find_one({"email": token_data["sub"]})
 
-    if user_data is None:
-        raise credentials_exception
+    if not user_data:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token user"
+        )
 
     return User(
         id=str(user_data["_id"]),
@@ -54,16 +55,16 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
 
 
 async def get_current_active_user(
-    current_user: Annotated[User, Depends(get_current_user)]
+    current_user: User = Depends(get_current_user)
 ):
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
 
-# =======================================================
+# ==============================
 # REGISTER
-# =======================================================
+# ==============================
 @router.post("/register", response_model=User)
 async def register(user_data: UserCreate):
     users_collection = get_collection("users")
@@ -93,48 +94,50 @@ async def register(user_data: UserCreate):
     )
 
 
-# =======================================================
+# ==============================
 # LOGIN
-# =======================================================
+# ==============================
 @router.post("/login", response_model=Token)
 async def login(login_data: LoginRequest):
     users_collection = get_collection("users")
-    user_data = users_collection.find_one({"email": login_data.email})
+    user = users_collection.find_one({"email": login_data.email})
 
-    if not user_data:
+    if not user or not verify_password(login_data.password, user.get("hashed_password", "")):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
-    if not verify_password(login_data.password, user_data.get("hashed_password", "")):
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
-
-    if not user_data.get("is_active", True):
+    if not user.get("is_active", True):
         raise HTTPException(status_code=400, detail="Inactive user")
 
-    access_token = create_access_token({
-        "sub": user_data["email"],
-        "role": user_data["role"]
-    })
+    token_payload = {
+        "sub": user["email"],
+        "role": user["role"],
+        "staff_id": str(user["_id"]),
+        "hospital_id": user.get("hospital_id"),
+        "hospital_name": user.get("hospital_name")
+    }
+
+    access_token = create_access_token(token_payload)
 
     return Token(
         access_token=access_token,
         token_type="bearer",
         user=User(
-            id=str(user_data["_id"]),
-            email=user_data["email"],
-            full_name=user_data["full_name"],
-            phone=user_data.get("phone", ""),
-            role=user_data["role"],
-            is_active=user_data.get("is_active", True),
-            profile_picture=user_data.get("profile_picture"),
-            created_at=user_data.get("created_at", datetime.utcnow()),
-            updated_at=user_data.get("updated_at", datetime.utcnow()),
+            id=str(user["_id"]),
+            email=user["email"],
+            full_name=user["full_name"],
+            phone=user.get("phone", ""),
+            role=user["role"],
+            is_active=user.get("is_active", True),
+            profile_picture=user.get("profile_picture"),
+            created_at=user.get("created_at", datetime.utcnow()),
+            updated_at=user.get("updated_at", datetime.utcnow()),
         )
     )
 
 
-# =======================================================
-# FORGOT PASSWORD — Send OTP
-# =======================================================
+# ==============================
+# FORGOT PASSWORD
+# ==============================
 @router.post("/forgot-password")
 async def forgot_password(request: ForgotPasswordRequest):
     users_collection = get_collection("users")
@@ -146,24 +149,20 @@ async def forgot_password(request: ForgotPasswordRequest):
     otp = generate_otp()
     expiry = datetime.utcnow() + timedelta(minutes=5)
 
-    # Save OTP in MongoDB
     users_collection.update_one(
         {"email": request.email},
         {"$set": {"reset_otp": otp, "otp_expiry": expiry}}
     )
 
-    # Send OTP via Email
-    send_email_otp(request.email, otp)
+    if not send_email_otp(request.email, otp):
+        raise HTTPException(status_code=500, detail="Failed to send OTP email")
 
-    return {
-        "message": "OTP sent to email",
-        "otp": otp  # Remove in production
-    }
+    return {"message": "OTP sent to email"}
 
 
-# =======================================================
-# RESET PASSWORD — Verify OTP
-# =======================================================
+# ==============================
+# RESET PASSWORD
+# ==============================
 @router.post("/reset-password")
 async def reset_password(data: ResetPasswordRequest):
     users_collection = get_collection("users")
@@ -175,7 +174,7 @@ async def reset_password(data: ResetPasswordRequest):
     if user.get("reset_otp") != data.otp:
         raise HTTPException(status_code=400, detail="Invalid OTP")
 
-    if user["otp_expiry"] < datetime.utcnow():
+    if user.get("otp_expiry") < datetime.utcnow():
         raise HTTPException(status_code=400, detail="OTP expired")
 
     hashed_password = get_password_hash(data.new_password)

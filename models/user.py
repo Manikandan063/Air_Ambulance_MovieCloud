@@ -3,6 +3,11 @@ from typing import Optional, List
 from enum import Enum
 from datetime import datetime
 
+class Gender(str, Enum):
+    MALE = "male"
+    FEMALE = "female"
+    OTHER = "other"
+
 class UserRole(str, Enum):
     SUPERADMIN = "superadmin"
     DISPATCHER = "dispatcher"
@@ -13,12 +18,13 @@ class UserRole(str, Enum):
     DOCTOR = "doctor"
     PARAMEDIC = "paramedic"
     PATIENT = "patient"
-    CLINICIAN = "clinician"  # Added the missing role
+    CLINICIAN = "clinician"
 
 class UserBase(BaseModel):
     email: EmailStr
     full_name: str
     phone: Optional[str] = None
+    gender: Optional[Gender] = None     # ⬅️ Added gender here
     role: UserRole
     is_active: bool = True
 
@@ -29,6 +35,7 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     phone: Optional[str] = None
+    gender: Optional[Gender] = None     # ⬅️ Added gender here
     profile_picture: Optional[str] = None
     is_active: Optional[bool] = None
 
@@ -56,10 +63,9 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     email: Optional[str] = None
     role: Optional[str] = None
-    
+
 class ForgotPasswordRequest(BaseModel):
     email: str
-
 
 class ResetPasswordRequest(BaseModel):
     email: str

@@ -8,6 +8,8 @@ from routes import (
 import uvicorn
 from init_db import initialize_database
 from datetime import datetime
+from routes import hospital_staff
+
 
 app = FastAPI(
     title="Air Ambulance Management System",
@@ -48,6 +50,7 @@ app.include_router(hospitals.router)
 app.include_router(aircraft.router)
 app.include_router(bookings.router)
 app.include_router(reports.router)
+app.include_router(hospital_staff.router)
 app.include_router(dashboard.router)
 app.include_router(settings.router)  # Now using the same import style
 app.include_router(notifications.router)  # Now using the same import style
@@ -80,6 +83,7 @@ async def root():
             "reports": "/api/reports",
             "settings": "/api/settings",
             "notifications": "/api/notifications",
+            "hospital_staff": "/api/hospital-staff",
             "dashboard": "/api/dashboard"
         }
     }

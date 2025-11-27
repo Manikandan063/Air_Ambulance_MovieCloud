@@ -10,66 +10,49 @@ import random
 import smtplib
 from email.mime.text import MIMEText
 
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 # ==============================
 # PASSWORD HASHING
 # ==============================
-def verify_password(plain_password, hashed_password):
+def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def get_password_hash(password):
+def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
 # ==============================
 # JWT TOKEN
 # ==============================
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-
-    expire = datetime.utcnow() + (expires_delta or timedelta(
-        minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-    ))
-
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
-
-    encoded_jwt = jwt.encode(
-        to_encode,
-        settings.JWT_SECRET_KEY,
-        algorithm=settings.JWT_ALGORITHM
-    )
-
+    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
 
 
-def verify_token(token: str) -> Optional[TokenData]:
+def decode_access_token(token: str) -> Optional[dict]:
     try:
-        payload = jwt.decode(
-            token,
-            settings.JWT_SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM]
-        )
-
-        email: str = payload.get("sub")
-        role: str = payload.get("role")
-
-        if email is None:
-            return None
-
-        return TokenData(email=email, role=role)
-
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        return payload
     except JWTError:
         return None
 
 
+def verify_token(token: str) -> Optional[TokenData]:
+    payload = decode_access_token(token)
+    if not payload or "sub" not in payload:
+        return None
+    return TokenData(email=payload["sub"], role=payload.get("role"))
+
+
 # ==============================
-# GENERATE OTP
+# OTP GENERATION
 # ==============================
-def generate_otp():
+def generate_otp() -> str:
     return str(random.randint(100000, 999999))
 
 
@@ -78,11 +61,11 @@ def generate_otp():
 # ==============================
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-SMTP_USERNAME = "yourgmail@gmail.com"              # CHANGE
-SMTP_PASSWORD = "your_app_password_here"           # CHANGE
+SMTP_USERNAME = "yourgmail@gmail.com"         # CHANGE
+SMTP_PASSWORD = "your_app_password_here"      # CHANGE
 
 
-def send_email_otp(email: str, otp: str):
+def send_email_otp(email: str, otp: str) -> bool:
     subject = "Your Password Reset OTP"
     body = f"Your OTP is: {otp}\nThis OTP expires in 5 minutes.\n\nDo NOT share this OTP with anyone."
 

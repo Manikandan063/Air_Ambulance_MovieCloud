@@ -40,18 +40,18 @@ async def create_patient(
         # DEBUG: Get database and collection info
         db_name = patients_collection.database.name
         collection_name = patients_collection.name
-        logger.info(f"🔍 Using database: {db_name}, collection: {collection_name}")
+        logger.info(f" Using database: {db_name}, collection: {collection_name}")
         
         # Count documents before insertion
         count_before = patients_collection.count_documents({})
-        logger.info(f"📊 Patients count BEFORE insertion: {count_before}")
+        logger.info(f" Patients count BEFORE insertion: {count_before}")
         
         # Convert Pydantic model to JSON string first, then to dict to ensure proper serialization
         patient_json = patient_data.json()
         patient_dict = json.loads(patient_json)
         
-        logger.info(f"🔍 Creating patient with data: {json.dumps(patient_dict, cls=CustomJSONEncoder, indent=2)}")
-        logger.info(f"🔍 Current user ID: {current_user.id}, Role: {current_user.role}")
+        logger.info(f" Creating patient with data: {json.dumps(patient_dict, cls=CustomJSONEncoder, indent=2)}")
+        logger.info(f" Current user ID: {current_user.id}, Role: {current_user.role}")
         
         # Convert date string to datetime for MongoDB
         if 'date_of_birth' in patient_dict and patient_dict['date_of_birth']:
@@ -61,14 +61,14 @@ async def create_patient(
         patient_dict["created_at"] = patient_dict["updated_at"] = datetime.utcnow()
         patient_dict["created_by"] = str(current_user.id)
         
-        logger.info(f"🔍 Final patient data for MongoDB: {json.dumps(patient_dict, cls=CustomJSONEncoder, indent=2)}")
+        logger.info(f" Final patient data for MongoDB: {json.dumps(patient_dict, cls=CustomJSONEncoder, indent=2)}")
         
         # Test database connection
         try:
             patients_collection.database.command('ping')
-            logger.info("✅ Database connection successful")
+            logger.info(" Database connection successful")
         except Exception as db_error:
-            logger.error(f"❌ Database connection failed: {db_error}")
+            logger.error(f" Database connection failed: {db_error}")
             raise HTTPException(status_code=500, detail="Database connection failed")
         
         # Insert into database
@@ -76,37 +76,37 @@ async def create_patient(
             result = patients_collection.insert_one(patient_dict)
             
             if not result.acknowledged:
-                logger.error("❌ Insert operation not acknowledged by MongoDB")
+                logger.error(" Insert operation not acknowledged by MongoDB")
                 raise HTTPException(status_code=500, detail="Insert operation failed")
             
             patient_id = str(result.inserted_id)
-            logger.info(f"✅ Insert operation acknowledged, patient ID: {patient_id}")
+            logger.info(f" Insert operation acknowledged, patient ID: {patient_id}")
             
         except Exception as insert_error:
-            logger.error(f"❌ Error during insert operation: {insert_error}")
+            logger.error(f" Error during insert operation: {insert_error}")
             raise HTTPException(status_code=500, detail=f"Insert operation failed: {str(insert_error)}")
         
         # Verify the insertion by reading back
         try:
             inserted_patient = patients_collection.find_one({"_id": result.inserted_id})
             if inserted_patient:
-                logger.info(f"✅ Patient created successfully with ID: {patient_id}")
-                logger.info(f"✅ Patient name: {inserted_patient.get('full_name', 'N/A')}")
+                logger.info(f" Patient created successfully with ID: {patient_id}")
+                logger.info(f" Patient name: {inserted_patient.get('full_name', 'N/A')}")
             else:
-                logger.error("❌ Insertion verification failed - patient not found after insert")
+                logger.error(" Insertion verification failed - patient not found after insert")
                 raise HTTPException(status_code=500, detail="Patient creation verification failed")
                 
         except Exception as verify_error:
-            logger.error(f"❌ Error during insertion verification: {verify_error}")
+            logger.error(f" Error during insertion verification: {verify_error}")
             raise HTTPException(status_code=500, detail="Verification of patient creation failed")
         
         # Count documents after insertion
         count_after = patients_collection.count_documents({})
-        logger.info(f"📊 Patients count AFTER insertion: {count_after}")
+        logger.info(f" Patients count AFTER insertion: {count_after}")
         
         # List all patients for debugging
         all_patients = list(patients_collection.find({}, {"full_name": 1, "_id": 1}).limit(5))
-        logger.info(f"📋 Recent patients in collection: {all_patients}")
+        logger.info(f" Recent patients in collection: {all_patients}")
         
         # Prepare response data
         response_data = dict(inserted_patient)
@@ -121,13 +121,13 @@ async def create_patient(
             if isinstance(value, ObjectId):
                 response_data[key] = str(value)
         
-        logger.info(f"✅ Successfully returning patient with ID: {patient_id}")
+        logger.info(f" Successfully returning patient with ID: {patient_id}")
         return Patient(**response_data)
     
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Unexpected error creating patient: {e}", exc_info=True)
+        logger.error(f" Unexpected error creating patient: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error creating patient: {str(e)}")
 
 @router.get("/", response_model=List[Patient])
@@ -144,7 +144,7 @@ async def get_patients(
         # Debug info
         db_name = patients_collection.database.name
         total_count = patients_collection.count_documents({})
-        logger.info(f"🔍 Retrieving patients from {db_name}.patients, total documents: {total_count}")
+        logger.info(f" Retrieving patients from {db_name}.patients, total documents: {total_count}")
         
         query = {}
         if acuity_level:

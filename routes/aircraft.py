@@ -220,3 +220,56 @@ async def update_aircraft(
     except Exception as e:
         logger.error(f"❌ Error updating aircraft {aircraft_id}: {e}")
         raise HTTPException(status_code=500, detail="Error updating aircraft")
+    
+    
+@router.delete("/{aircraft_id}")
+async def delete_aircraft(
+    aircraft_id: str,
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    if current_user.role not in [
+        UserRole.SUPERADMIN,
+        UserRole.DISPATCHER,
+        UserRole.AIRLINE_COORDINATOR
+    ]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions to delete aircraft"
+        )
+
+    try:
+        aircraft_collection = get_collection("aircraft")
+
+        if not ObjectId.is_valid(aircraft_id):
+            raise HTTPException(status_code=400, detail="Invalid aircraft ID format")
+
+        aircraft_data = aircraft_collection.find_one({"_id": ObjectId(aircraft_id)})
+
+        if not aircraft_data:
+            raise HTTPException(status_code=404, detail="Aircraft not found")
+
+        # Delete aircraft
+        aircraft_collection.delete_one({"_id": ObjectId(aircraft_id)})
+
+        # Prepare notification
+        aircraft_data["id"] = str(aircraft_data["_id"])
+        registration = aircraft_data.get("registration", "Unknown")
+
+        recipients = await get_aircraft_notification_recipients(current_user, "deleted", aircraft_data)
+        message = f"Aircraft {registration} has been permanently deleted from the system."
+
+        await NotificationService.send_system_notification(
+            users=recipients,
+            title="Aircraft Deleted",
+            message=message,
+            notification_type="danger"
+        )
+
+        logger.info(f"🗑️ Aircraft deleted: {registration} by user {current_user.email}")
+        return {"message": f"Aircraft {registration} deleted successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error deleting aircraft {aircraft_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error deleting aircraft")
