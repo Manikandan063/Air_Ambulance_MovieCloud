@@ -19,15 +19,30 @@ class PyObjectId(ObjectId):
     def __modify_schema__(cls, field_schema):
         field_schema.update(type="string")
 
+
 class AcuityLevel(str, Enum):
     CRITICAL = "critical"
     URGENT = "urgent"
     STABLE = "stable"
 
+
 class Gender(str, Enum):
     MALE = "male"
     FEMALE = "female"
     OTHER = "other"
+
+
+# ✅ New Blood Group Enum
+class BloodGroup(str, Enum):
+    A_POS = "A+"
+    A_NEG = "A-"
+    B_POS = "B+"
+    B_NEG = "B-"
+    AB_POS = "AB+"
+    AB_NEG = "AB-"
+    O_POS = "O+"
+    O_NEG = "O-"
+
 
 class NextOfKin(BaseModel):
     name: str
@@ -35,11 +50,13 @@ class NextOfKin(BaseModel):
     phone: str
     email: Optional[str] = None
 
+
 class InsuranceDetails(BaseModel):
     provider: str
     policy_number: str
     group_number: Optional[str] = None
     verification_status: str = "pending"
+
 
 class CurrentVitals(BaseModel):
     heart_rate: Optional[int] = None
@@ -48,21 +65,28 @@ class CurrentVitals(BaseModel):
     temperature: Optional[float] = None
     respiratory_rate: Optional[int] = None
 
+
 class PatientBase(BaseModel):
     full_name: str
-    date_of_birth: date  # Keep as date for API, convert to datetime for MongoDB
+    date_of_birth: date
     gender: Gender
     weight_kg: float = Field(..., gt=0)
     diagnosis: str
     acuity_level: AcuityLevel
+
+    # ✅ Added blood group
+    blood_group: BloodGroup
+
     allergies: List[str] = []
     current_vitals: Optional[CurrentVitals] = None
     special_equipment_needed: List[str] = []
     insurance_details: InsuranceDetails
     next_of_kin: NextOfKin
 
+
 class PatientCreate(PatientBase):
     pass
+
 
 class PatientUpdate(BaseModel):
     full_name: Optional[str] = None
@@ -70,9 +94,11 @@ class PatientUpdate(BaseModel):
     weight_kg: Optional[float] = None
     diagnosis: Optional[str] = None
     acuity_level: Optional[AcuityLevel] = None
+    blood_group: Optional[BloodGroup] = None   # ✅ Added here
     allergies: Optional[List[str]] = None
     current_vitals: Optional[CurrentVitals] = None
     special_equipment_needed: Optional[List[str]] = None
+
 
 class Patient(PatientBase):
     id: str
